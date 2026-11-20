@@ -1,0 +1,849 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="หารค่าอาหารในแก๊งเพื่อนตามที่แต่ละคนกินจริง แชร์บิลให้เพื่อนเห็นพร้อมกันแบบ real-time">
+<title>หารค่าข้าว</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&family=Mitr:wght@500&display=swap">
+<style>
+/* Layout: two columns — editor on the left (เพื่อน → เมนู → ค่าบริการ), sticky receipt slip on the right; stacks on phones with a bottom total bar */
+:root{
+  --bg:#EEF2EC; --surface:#FFFFFF; --ink:#18221B; --muted:#5C6A60; --line:#D8E0D6;
+  --accent:#1E7A4C; --accent-ink:#FFFFFF; --accent-soft:#DCEFE2; --warn:#B4441A; --warn-soft:#FBE7DD;
+  --slip:#FBFCF8; --av-s:62%; --av-l:44%;
+  --f-display:"Mitr","Anuphan",system-ui,sans-serif;
+  --f-body:"Anuphan","Noto Sans Thai",system-ui,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,"Cascadia Mono",monospace;
+  --r:10px;
+  color-scheme:light;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#111613; --surface:#19201B; --ink:#E6EDE7; --muted:#99A79D; --line:#2B352E;
+  --accent:#4DC48B; --accent-ink:#0D1A12; --accent-soft:#1C3527; --warn:#F08A5D; --warn-soft:#3A2219;
+  --slip:#1C241E; --av-s:48%; --av-l:58%; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#111613; --surface:#19201B; --ink:#E6EDE7; --muted:#99A79D; --line:#2B352E;
+  --accent:#4DC48B; --accent-ink:#0D1A12; --accent-soft:#1C3527; --warn:#F08A5D; --warn-soft:#3A2219;
+  --slip:#1C241E; --av-s:48%; --av-l:58%; color-scheme:dark }
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;padding:0 16px}
+.wrap{max-width:1100px;margin:0 auto;padding-block:28px 48px}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 20px;margin-bottom:16px}
+h1{font-family:var(--f-display);font-weight:500;font-size:clamp(28px,5vw,38px);line-height:1.1;margin:0;text-wrap:balance}
+h1 em{font-style:normal;color:var(--accent)}
+.sub{color:var(--muted);margin:6px 0 0;max-width:52ch}
+h2{font-family:var(--f-display);font-weight:500;font-size:19px;margin:0;text-wrap:balance}
+.label{font-size:12px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 370px;gap:24px;align-items:start;margin-top:16px}
+.col{display:flex;flex-direction:column;gap:18px;min-width:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.panel-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:14px}
+.panel-head .hint{color:var(--muted);font-size:13px}
+
+input,select,button{font:inherit;color:inherit}
+input[type=text],input[type=number],select{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0;width:100%}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input[type=number]{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+button{cursor:pointer}
+button:disabled{opacity:.6;cursor:progress}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 14px;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--warn);border-color:var(--warn)}
+.icon-btn{border:0;background:transparent;color:var(--muted);border-radius:6px;padding:6px 8px;font-size:13px;flex:none}
+.icon-btn:hover{color:var(--warn);background:var(--warn-soft)}
+
+.banner{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 14px;background:var(--accent-soft);border-radius:var(--r);padding:10px 14px;font-size:14px}
+.roombar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px;background:var(--surface);border:1px solid var(--accent);border-radius:var(--r);padding:12px 14px}
+.roombar .rb-text{min-width:0}
+.roombar small{display:block;color:var(--muted);font-size:13px}
+.roombar .rb-link{display:flex;gap:8px;flex:1 1 320px;min-width:0}
+.roombar .rb-link input{font-family:var(--f-num);font-size:13px}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);margin-left:6px}
+.status::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.status[data-s="synced"]::before{background:var(--accent)}
+.status[data-s="saving"]::before{background:#D89A1C}
+.status[data-s="offline"]::before,.status[data-s="error"]::before{background:var(--warn)}
+.roombar.missing{border-color:var(--warn)}
+
+/* people */
+.people{display:flex;flex-wrap:wrap;gap:8px}
+.people:not(:empty){margin-bottom:12px}
+.person{display:flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:3px 4px 3px 3px}
+.person input{background:transparent;border:0;padding:4px 2px;width:7.5ch}
+.person input:focus-visible{outline:none}
+.person:focus-within{border-color:var(--accent)}
+.av{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;flex:none;font-size:13px;font-weight:600;color:#fff;background:hsl(var(--h) var(--av-s) var(--av-l))}
+.person .icon-btn{padding:2px 7px;border-radius:999px}
+.add-row{display:flex;gap:8px}
+.add-row input{flex:1}
+
+/* items */
+.items{display:flex;flex-direction:column;gap:12px}
+.item{border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--surface)}
+.item.orphan{border-color:var(--warn)}
+.item-top{display:grid;grid-template-columns:minmax(0,1fr) 112px 64px auto;gap:8px;align-items:center}
+.field{position:relative}
+.field span{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:13px;pointer-events:none}
+.field input{padding-left:24px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:transparent;border-radius:999px;padding:4px 11px 4px 4px;font-size:14px;color:var(--muted)}
+.chip .av{width:22px;height:22px;font-size:11px;opacity:.35}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+.chip[aria-pressed="true"] .av{opacity:1}
+.chip.all{padding:4px 11px;font-weight:500}
+.item-meta{font-size:13px;color:var(--muted);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.item-meta .warn{color:var(--warn);font-weight:500}
+.add-item{margin-top:12px;width:100%;border:1px dashed var(--muted);background:transparent;border-radius:var(--r);padding:11px;color:var(--ink);font-weight:500}
+.add-item:hover{border-color:var(--accent);color:var(--accent)}
+
+/* extras */
+.extras{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.extra{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.extra label{display:flex;align-items:center;gap:8px;cursor:pointer}
+.extra input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+.extra .small{width:84px;flex:none}
+.extra .small input{padding-left:10px;padding-right:22px;text-align:right}
+.extra .small span{left:auto;right:9px}
+.extra small{display:block;color:var(--muted);font-size:12px;line-height:1.3}
+
+/* slip */
+.slip{position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px);background:var(--slip);border:1px solid var(--line);border-radius:var(--r) var(--r) 0 0;padding:20px 18px 26px;
+  -webkit-mask:radial-gradient(circle 7px at 50% 100%,#0000 98%,#000) bottom/18px 100% repeat-x;mask:radial-gradient(circle 7px at 50% 100%,#0000 98%,#000) bottom/18px 100% repeat-x}
+.slip-head{text-align:center;padding-bottom:12px;border-bottom:1.5px dashed var(--line);margin-bottom:12px}
+.slip-head .big{font-family:var(--f-num);font-size:30px;font-weight:600;line-height:1.15;margin-top:4px}
+.rows{display:flex;flex-direction:column}
+.prow{border-bottom:1px dashed var(--line)}
+.prow summary{list-style:none;display:flex;align-items:center;gap:10px;padding:10px 0;cursor:pointer}
+.prow summary::-webkit-details-marker{display:none}
+.prow .name{flex:1;min-width:0;overflow-wrap:anywhere}
+.prow .name small{display:block;color:var(--muted);font-size:12px}
+.prow .amt{font-family:var(--f-num);font-weight:600;font-size:17px;white-space:nowrap}
+.prow.payer .amt{color:var(--muted);font-weight:500}
+.tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;background:var(--accent-soft);color:var(--ink);margin-left:4px;vertical-align:1px}
+.break{font-size:13px;color:var(--muted);padding:0 0 10px 36px;display:flex;flex-direction:column;gap:2px}
+.break div{display:flex;justify-content:space-between;gap:10px}
+.break .num{white-space:nowrap}
+.totals{margin-top:12px;display:flex;flex-direction:column;gap:3px;font-size:14px}
+.totals div{display:flex;justify-content:space-between;gap:10px}
+.totals .grand{font-weight:600;border-top:1.5px dashed var(--line);padding-top:8px;margin-top:6px;font-size:15px}
+.alert{margin-top:12px;background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:8px 10px;font-size:13px}
+.payer-line{margin-top:14px;display:flex;flex-direction:column;gap:6px}
+.slip-actions{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.slip-actions .btn{width:100%}
+.empty{color:var(--muted);text-align:center;padding:14px 0;font-size:14px}
+#copyFallback{width:100%;min-height:140px;font:13px/1.5 var(--f-num);background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px}
+
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:14px;transition:.2s;pointer-events:none;z-index:9;max-width:calc(100% - 32px);text-align:center}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.minibar{display:none}
+
+@media (max-width:860px){
+  .grid{grid-template-columns:minmax(0,1fr)}
+  .slip{position:static}
+  .minibar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:5;align-items:center;justify-content:space-between;gap:12px;
+    padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));background:var(--surface);border-top:1px solid var(--line)}
+  .minibar a{color:var(--accent);font-weight:500;text-decoration:none}
+  .wrap{padding-bottom:90px}
+  .toast{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+}
+@media (max-width:520px){
+  .item-top{grid-template-columns:minmax(0,1fr) 96px auto}
+  .item-top .item-name{grid-column:1 / -1}
+  .item-top .del{grid-column:3}
+  .extras{grid-template-columns:minmax(0,1fr)}
+}
+/* friend view: pick yourself, tick what you ate */
+.fv{display:flex;flex-direction:column;gap:18px;max-width:640px;margin:16px auto 0}
+.who-list{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.who{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:5px 14px 5px 5px;font-size:15px}
+.who:hover{border-color:var(--accent)}
+.who .ok{color:var(--accent);font-size:12px}
+.pick{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:var(--r);cursor:pointer;background:var(--surface)}
+.pick + .pick{margin-top:8px}
+.pick input{width:22px;height:22px;accent-color:var(--accent);flex:none;margin:0}
+.pick.on{border-color:var(--accent);background:var(--accent-soft)}
+.pick .pinfo{flex:1;min-width:0;overflow-wrap:anywhere}
+.pick .pinfo small{display:block;color:var(--muted);font-size:13px}
+.pick .avs{display:flex;padding-left:6px;flex:none}
+.pick .avs .av{width:22px;height:22px;font-size:11px;margin-left:-6px;border:2px solid var(--surface)}
+.pick .price{font-family:var(--f-num);font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:500}
+.mine{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin:16px 0 12px;padding-top:12px;border-top:1.5px dashed var(--line)}
+.mine .num{font-size:26px;font-weight:600}
+.mine small{display:block;color:var(--muted);font-size:12px}
+.everyone{display:flex;flex-direction:column}
+.everyone div{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dashed var(--line)}
+.everyone .name{flex:1;min-width:0;overflow-wrap:anywhere}
+.everyone .num{font-weight:600}
+.tag.ok{background:transparent;border:1px solid var(--accent);color:var(--accent)}
+.tag.wait{background:transparent;border:1px solid var(--line);color:var(--muted)}
+body.friend .minibar{display:none!important}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>หารค่าข้าว <em>ตามที่กินจริง</em></h1>
+      <p class="sub">ใส่ชื่อเพื่อน ใส่เมนู แล้วแตะชื่อคนที่กินแต่ละจาน ใครไม่กินก็ไม่ต้องจ่ายจานนั้น</p>
+    </div>
+    <button class="btn ghost" id="newBill" type="button">เริ่มบิลใหม่</button>
+  </header>
+
+  <div class="banner" id="sampleBanner" hidden>
+    <span>ตอนนี้เป็นข้อมูลตัวอย่าง แก้ทับได้เลย หรือล้างเพื่อเริ่มจากศูนย์</span>
+    <button class="btn" id="clearAll" type="button">ล้างข้อมูลตัวอย่าง</button>
+  </div>
+
+  <div class="roombar" id="roomBar" hidden>
+    <div class="rb-text">
+      <b id="roomTitle">บิลนี้แชร์อยู่</b><span class="status" id="syncStatus" data-s="connecting">กำลังเชื่อมต่อ…</span>
+      <small id="roomHint">ส่งลิงก์นี้ให้เพื่อน เพื่อนเลือกชื่อตัวเองแล้วติ๊กว่ากินอะไร ยอดขึ้นที่นี่ทันที</small>
+    </div>
+    <div class="rb-link" id="roomLinkBox">
+      <input type="text" id="roomLink" readonly aria-label="ลิงก์บิล">
+      <button class="btn primary" id="copyLink" type="button">คัดลอกลิงก์</button>
+      <button class="btn" id="backToMine" type="button" hidden>กลับไปเลือกของฉัน</button>
+    </div>
+  </div>
+
+  <section class="fv" id="friendView" hidden>
+    <div class="panel" id="fvWho">
+      <div class="panel-head"><h2>คุณคือใคร</h2><span class="hint">แตะชื่อตัวเอง</span></div>
+      <div class="who-list" id="whoList"></div>
+      <form class="add-row" id="addMeForm">
+        <input type="text" id="addMeName" placeholder="ไม่มีชื่อตัวเอง? พิมพ์ชื่อตรงนี้" autocomplete="off">
+        <button class="btn" type="submit">เพิ่มชื่อฉัน</button>
+      </form>
+    </div>
+
+    <div class="panel" id="fvPick" hidden>
+      <div class="panel-head"><h2 id="pickTitle">กินอะไรบ้าง</h2><button class="btn ghost" id="notMe" type="button">ไม่ใช่ฉัน</button></div>
+      <p class="sub" style="margin:-6px 0 14px">ติ๊กจานที่กิน เอาติ๊กออกจานที่ไม่ได้กิน เพื่อนทุกคนเห็นทันที</p>
+      <div id="pickList"></div>
+      <p class="empty" id="pickEmpty" hidden>คนสร้างบิลยังไม่ได้ใส่เมนู รอสักครู่ เมนูจะขึ้นเองเมื่อเขาเพิ่ม</p>
+      <div class="mine"><span>ยอดของคุณ<small id="mineNote"></small></span><span class="num" id="mineTotal">฿0.00</span></div>
+      <button class="btn primary" id="doneBtn" type="button" style="width:100%">เลือกเสร็จแล้ว</button>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h2>ทุกคนจ่ายเท่าไหร่</h2><span class="hint num" id="fvGrand"></span></div>
+      <div class="everyone" id="everyone"></div>
+      <div id="fvPayer" class="sub" style="margin-top:10px"></div>
+    </div>
+    <button class="btn ghost" id="toEditor" type="button">แก้ทั้งบิล (เพิ่มเมนู แก้ราคา)</button>
+  </section>
+
+  <div class="grid" id="editor">
+    <div class="col">
+      <section class="panel" aria-labelledby="hPeople">
+        <div class="panel-head"><h2 id="hPeople">เพื่อนในแก๊ง</h2><span class="hint" id="peopleCount"></span></div>
+        <div class="people" id="people"></div>
+        <p class="empty" id="peopleEmpty" style="text-align:left;padding:0 0 12px">ยังไม่มีใคร เพิ่มชื่อเพื่อนด้านล่างก่อน</p>
+        <form class="add-row" id="addPersonForm">
+          <input type="text" id="newPerson" placeholder="พิมพ์ชื่อ (ใส่หลายคนคั่นด้วย , ได้)" autocomplete="off">
+          <button class="btn primary" type="submit">เพิ่ม</button>
+        </form>
+      </section>
+
+      <section class="panel" aria-labelledby="hItems">
+        <div class="panel-head"><h2 id="hItems">เมนูที่สั่ง</h2><span class="hint">แตะชื่อเพื่อเลือก/เอาออก</span></div>
+        <div class="items" id="items"></div>
+        <p class="empty" id="itemsEmpty">ยังไม่มีเมนู กด “เพิ่มเมนู” เพื่อใส่จานแรก</p>
+        <button class="add-item" id="addItem" type="button">+ เพิ่มเมนู</button>
+      </section>
+
+      <section class="panel" aria-labelledby="hExtra">
+        <div class="panel-head"><h2 id="hExtra">ค่าบริการ ภาษี ส่วนลด</h2></div>
+        <div class="extras">
+          <div class="extra">
+            <label><input type="checkbox" id="scOn"> <span>Service charge<small>แบ่งตามสัดส่วนที่กิน</small></span></label>
+            <div class="field small"><input type="number" id="scPct" min="0" step="0.5" inputmode="decimal" aria-label="เปอร์เซ็นต์ service charge"><span>%</span></div>
+          </div>
+          <div class="extra">
+            <label><input type="checkbox" id="vatOn"> <span>VAT<small>คิดหลังรวม service</small></span></label>
+            <div class="field small"><input type="number" id="vatPct" min="0" step="0.5" inputmode="decimal" aria-label="เปอร์เซ็นต์ VAT"><span>%</span></div>
+          </div>
+          <div class="extra">
+            <label for="discount"><span>ส่วนลดท้ายบิล<small>หักก่อนคิด service/VAT</small></span></label>
+            <div class="field small"><input type="number" id="discount" min="0" step="1" inputmode="decimal"><span>฿</span></div>
+          </div>
+          <div class="extra">
+            <label><input type="checkbox" id="roundUp"> <span>ปัดขึ้นเป็นบาทเต็ม<small>เศษที่เกินตกเป็นของคนจ่าย</small></span></label>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <aside class="slip" id="summary" aria-labelledby="hSum">
+      <div class="slip-head">
+        <div class="label" id="hSum">ยอดบิลทั้งหมด</div>
+        <div class="big" id="grand">฿0.00</div>
+      </div>
+      <div class="rows" id="rows"></div>
+      <div class="totals" id="totals"></div>
+      <div id="alertBox"></div>
+      <div class="payer-line">
+        <label class="label" for="payer">ใครจ่ายไปก่อน</label>
+        <select id="payer"></select>
+      </div>
+      <div class="slip-actions">
+        <button class="btn primary" id="shareBtn" type="button">ส่งลิงก์ให้เพื่อนมาติ๊กเอง</button>
+        <button class="btn" id="copyBtn" type="button">คัดลอกสรุปไปส่งในแชต</button>
+        <textarea id="copyFallback" hidden readonly aria-label="ข้อความสรุป"></textarea>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<div class="minibar"><span>รวม <b class="num" id="miniTotal">฿0.00</b></span><a href="#summary">ดูคนละเท่าไหร่ ↓</a></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function(){
+/* ใส่ค่า config จาก Firebase console (Project settings → Your apps → Web app) */
+const FIREBASE_CONFIG = null;
+const FB_VER = '10.12.2';
+const KEY = 'harn-khao-v2';
+const HUES = [152, 18, 212, 282, 42, 335, 188, 98, 0, 252, 120, 300];
+
+let seq = 0;
+const nid = () => 'i' + Date.now().toString(36) + (seq++).toString(36) + Math.random().toString(36).slice(2, 5);
+const randId = () => { const a = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789', b = new Uint8Array(20); crypto.getRandomValues(b); return [...b].map(x => a[x % a.length]).join(''); };
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => '฿' + (Math.abs(n) < 0.005 ? 0 : n).toLocaleString('th-TH', {minimumFractionDigits:2, maximumFractionDigits:2});
+const num = v => { const n = parseFloat(v); return isFinite(n) && n > 0 ? n : 0; };
+const DEL = {__op:'del'};
+const UNION = (...v) => ({__op:'union', v});
+const REMOVE = (...v) => ({__op:'remove', v});
+
+/* ---------- state ---------- */
+function defaults(){ return {scOn:false, scPct:10, vatOn:false, vatPct:7, discount:0, roundUp:false, payer:''}; }
+function blank(people){ return {people: people || {}, items: {}, settings: defaults()}; }
+function sampleState(){
+  const names = ['มิ้น','บอส','แพร','ต้น'], people = {};
+  names.forEach((name, i) => people['p' + i] = {name, hue: HUES[i], order: i});
+  const all = Object.keys(people), items = {};
+  [['หมูกระทะชุดใหญ่', 599, 1, all], ['ต้มยำกุ้งน้ำข้น', 220, 1, ['p0','p1','p2']], ['เบียร์ช้าง', 90, 3, ['p1','p3']],
+   ['ข้าวผัดปู', 120, 1, ['p2']], ['น้ำแข็ง + น้ำเปล่า', 40, 1, all]]
+    .forEach(([name, price, qty, eaters], i) => items['m' + i] = {name, price, qty, eaters, order: i});
+  return {people, items, settings: Object.assign(defaults(), {scOn:true, vatOn:true, payer:'p1'})};
+}
+function normalize(d){
+  d = d || {};
+  return {people: d.people || {}, items: d.items || {}, settings: Object.assign(defaults(), d.settings || {})};
+}
+function loadLocal(){ try { const r = JSON.parse(localStorage.getItem(KEY)); if (r && r.S) return r; } catch(e){} return null; }
+function saveLocal(){ if (roomId) return; try { localStorage.setItem(KEY, JSON.stringify({S, sample})); } catch(e){} }
+
+const lsGet = k => { try { return localStorage.getItem(k); } catch(e){ return null; } };
+const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch(e){} };
+const ownerKey = id => 'harn-owner-' + id, meKey = id => 'harn-me-' + id;
+
+const params = new URLSearchParams(location.search);
+let roomId = params.get('b');
+/* คนสร้างบิลเห็นหน้าแก้ทั้งบิล เพื่อนที่เปิดลิงก์เห็นหน้าเลือกชื่อแล้วติ๊กของที่ตัวเองกิน */
+let view = roomId && !lsGet(ownerKey(roomId)) ? 'friend' : 'editor';
+let me = roomId ? lsGet(meKey(roomId)) : null;
+let S, sample = false;
+if (roomId) S = blank();
+else { const l = loadLocal(); if (l) { S = normalize(l.S); sample = !!l.sample; } else { S = sampleState(); sample = true; } }
+
+const peopleList = () => Object.entries(S.people).map(([id, p]) => Object.assign({id}, p)).sort((a, b) => (a.order || 0) - (b.order || 0));
+const itemsList = () => Object.entries(S.items).map(([id, it]) => Object.assign({id}, it)).sort((a, b) => (a.order || 0) - (b.order || 0));
+const eatersOf = it => (Array.isArray(it.eaters) ? it.eaters : []).filter(id => S.people[id]);
+const initial = n => (String(n || '').trim().replace(/^[เแโใไ]/, '').charAt(0)) || '?';
+const nameOf = p => (p && p.name) || 'ไม่มีชื่อ';
+
+function setPath(obj, path, val){
+  const k = path.split('.'); let o = obj;
+  for (let i = 0; i < k.length - 1; i++){ if (typeof o[k[i]] !== 'object' || o[k[i]] === null) o[k[i]] = {}; o = o[k[i]]; }
+  const last = k[k.length - 1];
+  if (val && val.__op === 'del') delete o[last];
+  else if (val && val.__op === 'union'){ const a = Array.isArray(o[last]) ? o[last].slice() : []; val.v.forEach(x => { if (!a.includes(x)) a.push(x); }); o[last] = a; }
+  else if (val && val.__op === 'remove') o[last] = (Array.isArray(o[last]) ? o[last] : []).filter(x => !val.v.includes(x));
+  else o[last] = (val && typeof val === 'object' && !Array.isArray(val)) ? JSON.parse(JSON.stringify(val)) : val;
+}
+
+/* ---------- sync (Firestore) ---------- */
+let fb = null, roomRef = null, unsub = null, flushT = null;
+const pending = {};
+
+async function loadFb(){
+  if (fb) return fb;
+  if (!FIREBASE_CONFIG) throw new Error('nocfg');
+  const base = 'https://www.gstatic.com/firebasejs/' + FB_VER + '/';
+  const [app, fs] = await Promise.all([import(base + 'firebase-app.js'), import(base + 'firebase-firestore.js')]);
+  const a = app.initializeApp(FIREBASE_CONFIG);
+  fb = Object.assign({}, fs, {db: fs.getFirestore(a)});
+  return fb;
+}
+function toFs(patch){
+  const u = {updatedAt: fb.serverTimestamp()};
+  for (const k in patch){
+    const v = patch[k];
+    u[k] = v && v.__op === 'del' ? fb.deleteField() : v && v.__op === 'union' ? fb.arrayUnion(...v.v) : v && v.__op === 'remove' ? fb.arrayRemove(...v.v) : v;
+  }
+  return u;
+}
+function send(patch){
+  if (!roomRef || !Object.keys(patch).length) return;
+  setStatus('saving');
+  fb.updateDoc(roomRef, toFs(patch)).catch(e => { console.error(e); setStatus('error'); toast('บันทึกไม่สำเร็จ ลองเช็กอินเทอร์เน็ตแล้วแก้อีกครั้ง'); });
+}
+function flush(){
+  clearTimeout(flushT);
+  const p = Object.assign({}, pending);
+  Object.keys(pending).forEach(k => delete pending[k]);
+  send(p);
+}
+function dropPending(prefix){ Object.keys(pending).forEach(k => { if (k === prefix || k.startsWith(prefix + '.')) delete pending[k]; }); }
+
+/* one entry point for every change: local mode saves to this browser, room mode writes to Firestore */
+function apply(patch, lazy){
+  if (sample){ sample = false; }
+  for (const p in patch) setPath(S, p, patch[p]);
+  if (roomId){
+    if (lazy){ Object.assign(pending, patch); clearTimeout(flushT); flushT = setTimeout(flush, 400); }
+    else { flush(); send(patch); }
+  } else saveLocal();
+  render();
+}
+
+async function joinRoom(id){
+  roomId = id;
+  if (unsub) unsub();
+  render(); setStatus('connecting');
+  try { await loadFb(); }
+  catch(e){ setStatus('error', e.message === 'nocfg' ? 'ยังไม่ได้ตั้งค่า Firebase' : 'โหลดระบบซิงก์ไม่ได้'); return; }
+  roomRef = fb.doc(fb.db, 'bills', id);
+  unsub = fb.onSnapshot(roomRef, {includeMetadataChanges: true}, snap => {
+    if (!snap.exists()){ showMissing(); return; }
+    S = normalize(snap.data());
+    for (const p in pending) setPath(S, p, pending[p]);
+    setStatus(snap.metadata.hasPendingWrites ? 'saving' : snap.metadata.fromCache ? 'offline' : 'synced');
+    render();
+  }, err => { console.error(err); setStatus('error', 'เชื่อมต่อบิลนี้ไม่ได้'); });
+}
+function leaveRoom(){
+  flush();
+  if (unsub) unsub();
+  unsub = null; roomRef = null; roomId = null; view = 'editor'; me = null;
+  history.replaceState(null, '', location.pathname);
+}
+function showMissing(){
+  $('#roomBar').classList.add('missing');
+  $('#roomTitle').textContent = 'ไม่พบบิลนี้';
+  $('#roomHint').textContent = 'ลิงก์อาจพิมพ์ผิดหรือไม่ครบ ขอลิงก์ใหม่จากเพื่อน หรือกด “เริ่มบิลใหม่”';
+  $('#roomLinkBox').hidden = true;
+  setStatus('error', 'ไม่พบ');
+}
+const STATUS = {connecting:'กำลังเชื่อมต่อ…', saving:'กำลังบันทึก…', synced:'ซิงก์แล้ว', offline:'ออฟไลน์ จะซิงก์เมื่อเน็ตกลับมา', error:'เชื่อมต่อไม่ได้'};
+function setStatus(s, text){ const el = $('#syncStatus'); el.dataset.s = s; el.textContent = text || STATUS[s]; }
+
+/* ---------- calc ---------- */
+function calc(){
+  const per = {}; peopleList().forEach(p => per[p.id] = {sub:0, lines:[]});
+  let billSub = 0;
+  itemsList().forEach(it => {
+    const line = num(it.price) * (num(it.qty) || 1);
+    billSub += line;
+    const eaters = eatersOf(it);
+    if (!eaters.length) return;
+    const share = line / eaters.length;
+    eaters.forEach(id => { per[id].sub += share; per[id].lines.push({name: it.name || 'ไม่มีชื่อเมนู', share, n: eaters.length}); });
+  });
+  const st = S.settings;
+  const disc = Math.min(num(st.discount), billSub);
+  const sc = st.scOn ? num(st.scPct) / 100 : 0;
+  const vat = st.vatOn ? num(st.vatPct) / 100 : 0;
+  const after = billSub - disc;
+  const scAmt = after * sc, vatAmt = (after + scAmt) * vat;
+  const grand = after + scAmt + vatAmt;
+  let assigned = 0;
+  Object.values(per).forEach(r => {
+    const d = billSub ? disc * r.sub / billSub : 0;
+    r.disc = d; r.sc = (r.sub - d) * sc; r.vat = (r.sub - d + r.sc) * vat;
+    r.total = r.sub - d + r.sc + r.vat;
+    r.pay = st.roundUp ? Math.ceil(r.total - 1e-9) : r.total;
+    assigned += r.total;
+  });
+  return {per, billSub, disc, scAmt, vatAmt, grand, unassigned: grand - assigned};
+}
+
+/* ---------- render helpers (keyed, keeps focus while friends edit) ---------- */
+function setVal(input, v){ v = v == null ? '' : String(v); if (document.activeElement !== input && input.value !== v) input.value = v; }
+function setHTML(el, html){ if (el._html !== html){ el._html = html; el.innerHTML = html; } }
+function syncList(box, list, make, update){
+  const have = new Map([...box.children].map(e => [e.dataset.id, e]));
+  list.forEach((x, i) => {
+    let el = have.get(x.id);
+    if (el) have.delete(x.id); else el = make(x);
+    update(el, x);
+    if (box.children[i] !== el) box.insertBefore(el, box.children[i] || null);
+  });
+  have.forEach(el => el.remove());
+}
+
+/* ---------- render: people ---------- */
+function renderPeople(){
+  const list = peopleList();
+  syncList($('#people'), list, p => {
+    const el = document.createElement('div');
+    el.className = 'person'; el.dataset.id = p.id;
+    el.innerHTML = `<span class="av"></span><input type="text" id="pn-${p.id}" data-role="pname" aria-label="ชื่อเพื่อน" autocomplete="off"><button class="icon-btn" type="button" data-role="pdel">×</button>`;
+    return el;
+  }, (el, p) => {
+    const av = el.querySelector('.av'); av.style.setProperty('--h', p.hue); av.textContent = initial(p.name);
+    setVal(el.querySelector('input'), p.name);
+    el.querySelector('button').setAttribute('aria-label', 'ลบ ' + nameOf(p));
+  });
+  $('#peopleEmpty').hidden = list.length > 0;
+  $('#peopleCount').textContent = list.length ? list.length + ' คน' : '';
+  const sel = $('#payer');
+  if (document.activeElement !== sel){
+    setHTML(sel, '<option value="">ยังไม่ระบุ</option>' + list.map(p => `<option value="${p.id}">${esc(nameOf(p))}</option>`).join(''));
+    sel.value = S.people[S.settings.payer] ? S.settings.payer : '';
+  }
+}
+
+/* ---------- render: items ---------- */
+function chipsHTML(it){
+  const people = peopleList(), eaters = eatersOf(it);
+  const allOn = people.length && people.every(p => eaters.includes(p.id));
+  return `<button class="chip all" type="button" data-role="all" aria-pressed="${!!allOn}">ทุกคน</button>` +
+    people.map(p => `<button class="chip" type="button" data-role="chip" data-pid="${p.id}" aria-pressed="${eaters.includes(p.id)}"><span class="av" style="--h:${p.hue}">${esc(initial(p.name))}</span>${esc(nameOf(p))}</button>`).join('');
+}
+function metaHTML(it){
+  const line = num(it.price) * (num(it.qty) || 1);
+  const n = eatersOf(it).length, total = Object.keys(S.people).length;
+  if (!n) return `<span class="warn">ยังไม่มีใครกินจานนี้ แตะชื่อเพื่อนด้านบน</span><span class="num">${fmt(line)}</span>`;
+  return `<span>${n === total ? 'หารทุกคน' : 'หาร ' + n + ' คน'} · คนละ <b class="num">${fmt(line / n)}</b></span><span class="num">รวม ${fmt(line)}</span>`;
+}
+function renderItems(){
+  const list = itemsList();
+  syncList($('#items'), list, it => {
+    const el = document.createElement('div');
+    el.className = 'item'; el.dataset.id = it.id;
+    el.innerHTML = `
+      <div class="item-top">
+        <input type="text" class="item-name" id="in-${it.id}" data-role="name" placeholder="ชื่อเมนู เช่น ส้มตำไทย" aria-label="ชื่อเมนู" autocomplete="off">
+        <div class="field"><span>฿</span><input type="number" id="ip-${it.id}" data-role="price" min="0" step="any" inputmode="decimal" placeholder="ราคา" aria-label="ราคาต่อหน่วย"></div>
+        <div class="field"><span>×</span><input type="number" id="iq-${it.id}" data-role="qty" min="1" step="1" inputmode="numeric" aria-label="จำนวน"></div>
+        <button class="icon-btn del" type="button" data-role="idel">ลบ</button>
+      </div>
+      <div class="chips"></div>
+      <div class="item-meta"></div>`;
+    return el;
+  }, (el, it) => {
+    setVal(el.querySelector('[data-role=name]'), it.name);
+    setVal(el.querySelector('[data-role=price]'), it.price || '');
+    setVal(el.querySelector('[data-role=qty]'), it.qty || 1);
+    setHTML(el.querySelector('.chips'), chipsHTML(it));
+    setHTML(el.querySelector('.item-meta'), metaHTML(it));
+    el.classList.toggle('orphan', !eatersOf(it).length);
+  });
+  $('#itemsEmpty').hidden = list.length > 0;
+}
+
+/* ---------- render: summary ---------- */
+function renderSummary(){
+  const c = calc(), st = S.settings, people = peopleList();
+  $('#grand').textContent = fmt(c.grand);
+  $('#miniTotal').textContent = fmt(c.grand);
+  const open = new Set([...document.querySelectorAll('.prow[open]')].map(d => d.dataset.id));
+  setHTML($('#rows'), people.length ? people.map(p => {
+    const r = c.per[p.id], isPayer = st.payer === p.id;
+    const lines = r.lines.map(l => `<div><span>${esc(l.name)}${l.n > 1 ? ' ÷' + l.n : ''}</span><span class="num">${fmt(l.share)}</span></div>`).join('');
+    const extra = (r.disc ? `<div><span>ส่วนลด</span><span class="num">−${fmt(r.disc)}</span></div>` : '') +
+      (r.sc ? `<div><span>Service ${num(st.scPct)}%</span><span class="num">${fmt(r.sc)}</span></div>` : '') +
+      (r.vat ? `<div><span>VAT ${num(st.vatPct)}%</span><span class="num">${fmt(r.vat)}</span></div>` : '');
+    return `<details class="prow${isPayer ? ' payer' : ''}" data-id="${p.id}"${open.has(p.id) ? ' open' : ''}>
+      <summary><span class="av" style="--h:${p.hue}">${esc(initial(p.name))}</span>
+        <span class="name">${esc(nameOf(p))}${isPayer ? '<span class="tag">จ่ายไปก่อน</span>' : ''}${roomId && p.confirmed ? '<span class="tag ok">เลือกแล้ว</span>' : ''}<small>${r.lines.length ? r.lines.length + ' รายการ · แตะดูรายละเอียด' : 'ไม่ได้กินอะไรเลย'}</small></span>
+        <span class="amt">${fmt(r.pay)}</span></summary>
+      <div class="break">${lines || '<div>—</div>'}${extra}</div></details>`;
+  }).join('') : '<div class="empty">เพิ่มเพื่อนก่อน แล้วยอดของแต่ละคนจะขึ้นตรงนี้</div>');
+
+  setHTML($('#totals'), `
+    <div><span>ค่าอาหาร</span><span class="num">${fmt(c.billSub)}</span></div>
+    ${c.disc ? `<div><span>ส่วนลด</span><span class="num">−${fmt(c.disc)}</span></div>` : ''}
+    ${st.scOn ? `<div><span>Service charge ${num(st.scPct)}%</span><span class="num">${fmt(c.scAmt)}</span></div>` : ''}
+    ${st.vatOn ? `<div><span>VAT ${num(st.vatPct)}%</span><span class="num">${fmt(c.vatAmt)}</span></div>` : ''}
+    <div class="grand"><span>ยอดบิลทั้งหมด</span><span class="num">${fmt(c.grand)}</span></div>`);
+
+  const msgs = [];
+  if (c.unassigned > 0.009) msgs.push(`ยังมี ${fmt(c.unassigned)} ที่ไม่มีใครรับ เพราะบางเมนูยังไม่ได้เลือกคนกิน`);
+  if (st.roundUp && people.length){
+    const over = people.reduce((a, p) => a + c.per[p.id].pay, 0) - (c.grand - c.unassigned);
+    if (over > 0.009) msgs.push(`ปัดเศษแล้วเก็บเกินบิลมา ${fmt(over)} ตกเป็นของคนจ่ายไปก่อน`);
+  }
+  setHTML($('#alertBox'), msgs.map(m => `<div class="alert">${m}</div>`).join(''));
+}
+
+function renderExtras(){
+  const st = S.settings;
+  $('#scOn').checked = !!st.scOn; setVal($('#scPct'), st.scPct);
+  $('#vatOn').checked = !!st.vatOn; setVal($('#vatPct'), st.vatPct);
+  setVal($('#discount'), st.discount || ''); $('#roundUp').checked = !!st.roundUp;
+}
+function renderMode(){
+  const friend = view === 'friend';
+  document.body.classList.toggle('friend', friend);
+  $('#sampleBanner').hidden = !(sample && !roomId);
+  $('#roomBar').hidden = !roomId;
+  $('#shareBtn').hidden = !!roomId;
+  const missing = $('#roomBar').classList.contains('missing');
+  $('#editor').hidden = friend || missing;
+  $('#friendView').hidden = !friend || missing;
+  if (roomId && !missing){
+    $('#roomTitle').textContent = friend ? 'บิลค่าข้าวจากเพื่อน' : 'บิลนี้แชร์อยู่';
+    $('#roomHint').textContent = friend ? 'เลือกชื่อตัวเอง แล้วติ๊กจานที่กิน ยอดของทุกคนอัปเดตทันที'
+      : 'ส่งลิงก์นี้ให้เพื่อน เพื่อนเลือกชื่อตัวเองแล้วติ๊กว่ากินอะไร ยอดขึ้นที่นี่ทันที';
+  }
+  $('#newBill').hidden = friend;
+  $('#toEditor').textContent = 'แก้ทั้งบิล (เพิ่มเมนู แก้ราคา)';
+  if (roomId){
+    const link = location.origin + location.pathname + '?b=' + roomId;
+    setVal($('#roomLink'), link);
+  }
+  $('#backToMine').hidden = !(roomId && !lsGet(ownerKey(roomId)) && !friend);
+}
+
+/* ---------- render: friend view ---------- */
+function renderFriend(){
+  if (view !== 'friend') return;
+  const people = peopleList(), mine = me && S.people[me];
+  const c = calc(), st = S.settings;
+  $('#fvWho').hidden = !!mine;
+  $('#fvPick').hidden = !mine;
+  setHTML($('#whoList'), people.length ? people.map(p =>
+    `<button class="who" type="button" data-pid="${p.id}"><span class="av" style="--h:${p.hue}">${esc(initial(p.name))}</span>${esc(nameOf(p))}${p.confirmed ? '<span class="ok">✓</span>' : ''}</button>`).join('')
+    : '<span class="sub" style="margin:0">ยังไม่มีรายชื่อ พิมพ์ชื่อตัวเองด้านล่างได้เลย</span>');
+
+  if (mine){
+    $('#pickTitle').textContent = nameOf(mine) + ' กินอะไรบ้าง';
+    const items = itemsList();
+    $('#pickEmpty').hidden = items.length > 0;
+    setHTML($('#pickList'), items.map(it => {
+      const eaters = eatersOf(it), on = eaters.includes(me);
+      const line = num(it.price) * (num(it.qty) || 1);
+      const n = eaters.length;
+      const share = on ? line / n : line / (n + 1);
+      return `<label class="pick${on ? ' on' : ''}" data-id="${it.id}">
+        <input type="checkbox" data-role="mine"${on ? ' checked' : ''}>
+        <span class="pinfo">${esc(it.name || 'ไม่มีชื่อเมนู')}${num(it.qty) > 1 ? ' ×' + num(it.qty) : ''}
+          <small>${n ? (on ? 'หาร ' + n + ' คน' : 'ตอนนี้ ' + n + ' คนกิน') : 'ยังไม่มีใครติ๊ก'} · ${on ? 'ส่วนของคุณ' : 'ถ้ากินด้วย'} ${fmt(share)}</small></span>
+        <span class="avs">${eaters.slice(0, 5).map(id => `<span class="av" style="--h:${S.people[id].hue}" title="${esc(nameOf(S.people[id]))}">${esc(initial(S.people[id].name))}</span>`).join('')}</span>
+        <span class="price">${fmt(line)}</span></label>`;
+    }).join(''));
+    $('#mineTotal').textContent = fmt(c.per[me] ? c.per[me].pay : 0);
+    const notes = [];
+    if (st.scOn) notes.push('service ' + num(st.scPct) + '%');
+    if (st.vatOn) notes.push('VAT ' + num(st.vatPct) + '%');
+    if (num(st.discount)) notes.push('หักส่วนลดแล้ว');
+    $('#mineNote').textContent = notes.length ? 'รวม ' + notes.join(', ') : '';
+    const done = $('#doneBtn');
+    done.textContent = mine.confirmed ? 'เลือกเสร็จแล้ว ✓ (แก้ได้ตลอด)' : 'เลือกเสร็จแล้ว';
+    done.classList.toggle('primary', !mine.confirmed);
+  }
+
+  $('#fvGrand').textContent = 'บิลรวม ' + fmt(c.grand);
+  setHTML($('#everyone'), people.map(p => `<div><span class="av" style="--h:${p.hue}">${esc(initial(p.name))}</span>
+    <span class="name">${esc(nameOf(p))}${p.id === me ? ' (คุณ)' : ''} ${p.confirmed ? '<span class="tag ok">เลือกแล้ว</span>' : '<span class="tag wait">ยังไม่ได้เลือก</span>'}</span>
+    <span class="num">${fmt(c.per[p.id].pay)}</span></div>`).join('') || '<p class="empty">ยังไม่มีรายชื่อ</p>');
+  const payer = S.people[st.payer];
+  $('#fvPayer').textContent = payer ? 'โอนให้ ' + nameOf(payer) + ' ที่จ่ายไปก่อน' : '';
+}
+function render(){ renderMode(); renderPeople(); renderItems(); renderExtras(); renderSummary(); renderFriend(); }
+
+/* ---------- people events ---------- */
+$('#addPersonForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const names = $('#newPerson').value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+  if (!names.length) return;
+  const patch = {}, before = Object.keys(S.people), base = Date.now();
+  const newIds = names.map((name, i) => {
+    const id = nid();
+    patch['people.' + id] = {name, hue: HUES[(before.length + i) % HUES.length], order: base + i};
+    return id;
+  });
+  /* เมนูที่ทุกคนเดิมกินอยู่แล้ว ให้คนใหม่กินด้วย */
+  itemsList().forEach(it => {
+    const eaters = eatersOf(it);
+    if (before.length && eaters.length === before.length) patch['items.' + it.id + '.eaters'] = UNION(...newIds);
+  });
+  apply(patch);
+  $('#newPerson').value = '';
+  $('#newPerson').focus();
+});
+$('#people').addEventListener('input', e => {
+  if (e.target.dataset.role !== 'pname') return;
+  const id = e.target.closest('.person').dataset.id;
+  apply({['people.' + id + '.name']: e.target.value}, true);
+});
+$('#people').addEventListener('click', e => {
+  if (e.target.dataset.role !== 'pdel') return;
+  const id = e.target.closest('.person').dataset.id;
+  dropPending('people.' + id);
+  const patch = {['people.' + id]: DEL};
+  itemsList().forEach(it => { if ((it.eaters || []).includes(id)) patch['items.' + it.id + '.eaters'] = REMOVE(id); });
+  if (S.settings.payer === id) patch['settings.payer'] = '';
+  apply(patch);
+});
+
+/* ---------- item events ---------- */
+const itemIdOf = el => el.closest('.item').dataset.id;
+$('#items').addEventListener('input', e => {
+  const role = e.target.dataset.role; if (!role) return;
+  const id = itemIdOf(e.target), base = 'items.' + id + '.';
+  if (role === 'name') apply({[base + 'name']: e.target.value}, true);
+  if (role === 'price') apply({[base + 'price']: num(e.target.value)}, true);
+  if (role === 'qty') apply({[base + 'qty']: Math.max(1, Math.round(num(e.target.value)) || 1)}, true);
+});
+$('#items').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  const id = itemIdOf(btn), it = S.items[id], role = btn.dataset.role;
+  if (!it) return;
+  if (role === 'idel'){ dropPending('items.' + id); apply({['items.' + id]: DEL}); return; }
+  if (role === 'chip'){
+    const pid = btn.dataset.pid;
+    apply({['items.' + id + '.eaters']: eatersOf(it).includes(pid) ? REMOVE(pid) : UNION(pid)});
+  }
+  if (role === 'all'){
+    const ids = Object.keys(S.people), allOn = ids.length && ids.every(p => eatersOf(it).includes(p));
+    apply({['items.' + id + '.eaters']: allOn ? [] : ids});
+  }
+});
+$('#addItem').addEventListener('click', () => {
+  const id = nid();
+  apply({['items.' + id]: {name:'', price:0, qty:1, eaters: Object.keys(S.people), order: Date.now()}});
+  const el = document.getElementById('in-' + id);
+  if (el){ el.focus(); el.scrollIntoView({block:'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'}); }
+});
+
+/* ---------- extras ---------- */
+$('#scOn').addEventListener('change', e => apply({'settings.scOn': e.target.checked}));
+$('#scPct').addEventListener('input', e => { const v = num(e.target.value); apply(v ? {'settings.scPct': v, 'settings.scOn': true} : {'settings.scPct': v}, true); });
+$('#vatOn').addEventListener('change', e => apply({'settings.vatOn': e.target.checked}));
+$('#vatPct').addEventListener('input', e => { const v = num(e.target.value); apply(v ? {'settings.vatPct': v, 'settings.vatOn': true} : {'settings.vatPct': v}, true); });
+$('#discount').addEventListener('input', e => apply({'settings.discount': num(e.target.value)}, true));
+$('#roundUp').addEventListener('change', e => apply({'settings.roundUp': e.target.checked}));
+$('#payer').addEventListener('change', e => apply({'settings.payer': e.target.value}));
+
+/* ---------- share / room ---------- */
+$('#shareBtn').addEventListener('click', async e => {
+  const btn = e.currentTarget, label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'กำลังสร้างลิงก์…';
+  try {
+    await loadFb();
+    const id = randId();
+    await fb.setDoc(fb.doc(fb.db, 'bills', id), {people: S.people, items: S.items, settings: S.settings, createdAt: fb.serverTimestamp(), updatedAt: fb.serverTimestamp()});
+    sample = false; saveLocal();
+    lsSet(ownerKey(id), '1'); view = 'editor';
+    history.replaceState(null, '', location.pathname + '?b=' + id);
+    await joinRoom(id);
+    copyText($('#roomLink').value, 'คัดลอกลิงก์แล้ว ส่งให้เพื่อนในแชตได้เลย', () => { $('#roomLink').focus(); $('#roomLink').select(); toast('สร้างลิงก์แล้ว กดคัดลอกลิงก์ด้านบนเพื่อส่งให้เพื่อน'); });
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  } catch(err){
+    console.error(err);
+    toast(err.message === 'nocfg' ? 'ยังไม่ได้ตั้งค่า Firebase ในเว็บนี้' : 'สร้างลิงก์ไม่สำเร็จ ลองใหม่อีกครั้ง');
+  } finally { btn.disabled = false; btn.textContent = label; }
+});
+$('#copyLink').addEventListener('click', () => copyText($('#roomLink').value, 'คัดลอกลิงก์แล้ว', () => { $('#roomLink').focus(); $('#roomLink').select(); toast('เลือกข้อความแล้ว กดคัดลอกเองได้เลย'); }));
+
+/* ---------- friend view events ---------- */
+function setMe(id){ me = id; lsSet(meKey(roomId), id); render(); window.scrollTo({top: 0}); }
+$('#whoList').addEventListener('click', e => { const b = e.target.closest('.who'); if (b) setMe(b.dataset.pid); });
+$('#addMeForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const name = $('#addMeName').value.trim(); if (!name) return;
+  const id = nid();
+  apply({['people.' + id]: {name, hue: HUES[Object.keys(S.people).length % HUES.length], order: Date.now()}});
+  $('#addMeName').value = '';
+  setMe(id);
+});
+$('#notMe').addEventListener('click', () => { me = null; lsSet(meKey(roomId), null); render(); });
+$('#pickList').addEventListener('change', e => {
+  if (e.target.dataset.role !== 'mine' || !me) return;
+  const id = e.target.closest('.pick').dataset.id;
+  apply({['items.' + id + '.eaters']: e.target.checked ? UNION(me) : REMOVE(me), ['people.' + me + '.confirmed']: false});
+});
+$('#doneBtn').addEventListener('click', () => {
+  if (!me || !S.people[me]) return;
+  apply({['people.' + me + '.confirmed']: true});
+  toast('บันทึกแล้ว เพื่อนเห็นยอดของคุณแล้ว');
+});
+$('#toEditor').addEventListener('click', () => { view = 'editor'; render(); window.scrollTo({top: 0}); });
+$('#backToMine').addEventListener('click', () => { view = 'friend'; render(); window.scrollTo({top: 0}); });
+
+/* ---------- reset ---------- */
+$('#clearAll').addEventListener('click', () => { S = blank(); sample = false; saveLocal(); render(); toast('ล้างแล้ว เริ่มเพิ่มเพื่อนได้เลย'); $('#newPerson').focus(); });
+let armT = null;
+$('#newBill').addEventListener('click', e => {
+  const b = e.currentTarget;
+  if (!b.classList.contains('danger')){
+    b.classList.add('danger');
+    b.textContent = roomId ? 'กดอีกครั้งเพื่อเริ่มบิลใหม่ (บิลนี้ยังอยู่ที่ลิงก์เดิม)' : 'กดอีกครั้งเพื่อล้างเมนู (เก็บรายชื่อไว้)';
+    clearTimeout(armT); armT = setTimeout(() => { b.classList.remove('danger'); b.textContent = 'เริ่มบิลใหม่'; }, 3500);
+    return;
+  }
+  clearTimeout(armT); b.classList.remove('danger'); b.textContent = 'เริ่มบิลใหม่';
+  const keep = S.people;
+  if (roomId) leaveRoom();
+  $('#roomBar').classList.remove('missing'); $('#roomTitle').textContent = 'บิลนี้แชร์อยู่';
+  $('#roomHint').textContent = 'ส่งลิงก์นี้ให้เพื่อน เพื่อนเลือกชื่อตัวเองแล้วติ๊กว่ากินอะไร ยอดขึ้นที่นี่ทันที'; $('#roomLinkBox').hidden = false;
+  S = blank(keep); sample = false; saveLocal(); render();
+  toast('เริ่มบิลใหม่แล้ว รายชื่อเพื่อนยังอยู่');
+});
+
+/* ---------- copy ---------- */
+function summaryText(){
+  const c = calc(), st = S.settings, payer = S.people[st.payer];
+  const parts = [];
+  if (c.disc) parts.push('ส่วนลด ' + fmt(c.disc));
+  if (st.scOn) parts.push('service ' + num(st.scPct) + '%');
+  if (st.vatOn) parts.push('VAT ' + num(st.vatPct) + '%');
+  const out = ['หารค่าข้าว ยอดบิล ' + fmt(c.grand) + (parts.length ? ' (รวม ' + parts.join(', ') + ')' : ''), ''];
+  peopleList().forEach(p => {
+    const r = c.per[p.id];
+    out.push(`${nameOf(p)}  ${fmt(r.pay)}${st.payer === p.id ? '  (จ่ายไปก่อนแล้ว)' : ''}`);
+    if (r.lines.length) out.push('   ' + r.lines.map(l => l.name).join(', '));
+  });
+  if (payer) out.push('', 'โอนให้ ' + nameOf(payer) + ' ได้เลย');
+  if (roomId) out.push('', 'ดูบิลเต็ม: ' + $('#roomLink').value);
+  return out.join('\n');
+}
+function copyText(text, okMsg, fallback){
+  try { navigator.clipboard.writeText(text).then(() => toast(okMsg), fallback); } catch(e){ fallback(); }
+}
+$('#copyBtn').addEventListener('click', () => {
+  const text = summaryText();
+  copyText(text, 'คัดลอกแล้ว ไปวางในแชตได้เลย', () => {
+    const ta = $('#copyFallback'); ta.value = text; ta.hidden = false; ta.focus(); ta.select();
+    toast('คัดลอกอัตโนมัติไม่ได้ เลือกข้อความด้านล่างแล้วกดคัดลอกเอง');
+  });
+});
+let tT = null;
+function toast(m){ const t = $('#toast'); t.textContent = m; t.classList.add('show'); clearTimeout(tT); tT = setTimeout(() => t.classList.remove('show'), 2400); }
+
+window.addEventListener('pagehide', () => { if (roomId) flush(); });
+
+render();
+if (roomId) joinRoom(roomId);
+})();
+</script>
+</body>
+</html>
